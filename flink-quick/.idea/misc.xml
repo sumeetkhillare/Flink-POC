@@ -7,5 +7,7 @@
       </list>
     </option>
   </component>
-  <component name="ProjectRootManager" version="2" languageLevel="JDK_15" project-jdk-name="16" project-jdk-type="JavaSDK" />
+  <component name="ProjectRootManager" version="2" languageLevel="JDK_15" project-jdk-name="1.8" project-jdk-type="JavaSDK">
+    <output url="file://$USER_HOME$/Downloads/openlogic-openjdk-8u262-b10-windows-x64/openlogic-openjdk-8u262-b10-win-64" />
+  </component>
 </project>
