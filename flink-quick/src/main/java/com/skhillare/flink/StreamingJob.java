@@ -51,8 +51,9 @@ import java.util.concurrent.TimeUnit;
 @SuppressWarnings("serial")
 public class StreamingJob {
 
-
 	/** Data type for words with count. */
+
+
 	public static class WordWithCount {
 
 		public String word;
