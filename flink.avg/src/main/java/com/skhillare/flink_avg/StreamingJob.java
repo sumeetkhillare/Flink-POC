@@ -18,18 +18,16 @@
 
 package com.skhillare.flink_avg;
 
-import org.apache.flink.api.common.functions.AggregateFunction;
-import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.ReduceFunction;
-import org.apache.flink.api.java.utils.ParameterTool;
-import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.datastream.DataStream;
-import org.apache.flink.streaming.api.environment.CheckpointConfig;
+import org.apache.flink.streaming.api.datastream.DataStreamSource;
+import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTimeWindows;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.util.Collector;
-import java.util.concurrent.TimeUnit;
+
 
 /**
  * Skeleton for a Flink Streaming Job.
@@ -47,39 +45,41 @@ import java.util.concurrent.TimeUnit;
 @SuppressWarnings("serial")
 public class StreamingJob {
 
-	/** Data type for words with count. */
+	public static class AverageClass {
+		long key;
+		long count;
+		long sum;
 
-
-	public static class WordWithCount {
-
-		public String word;
-		public double avg;
-		public WordWithCount() {}
-		public WordWithCount(double avg){
-			this.avg=avg;
+		public AverageClass(long key,long count,long sum){
+			this.count=count;
+			this.sum=sum;
+			this.key=key;
 		}
-
-		public double GetAvg(String num){
-			long sum=0;
-			long cnt=0;
-			double avg;
-			for (String number : num.split("\\s")) {
-				sum+=Integer.valueOf(number);
-				cnt+=1;
-			}
-			avg=(float)sum/(float)cnt;
-			return avg;
-		}
-
 		@Override
 		public String toString() {
-			return word + " : " + avg;
+			float fsum=this.sum;
+			float fcount=this.count;
+			return "Average: " + fsum/fcount;
+		}
+
+	}
+
+	public static class AverageClassTwoValue{
+		long key;
+		double sum;
+
+		public AverageClassTwoValue(long key,double sum){
+			this.key=key;
+			this.sum=sum;
+		}
+		@Override
+		public String toString() {
+			return "Average: " + sum;
 		}
 	}
 
 	public static void main(String[] args) throws Exception {
-		final String CLASS_NAME = StreamingJob.class.getSimpleName();
-
+		final long[] numbercount = {1};
 		// the host and the port to connect to
 		final String hostname;
 		final int port;
@@ -92,18 +92,6 @@ public class StreamingJob {
 //			port=9000;
 			hostname = params.has("hostname") ? params.get("hostname") : "localhost";
 			port = params.getInt("port");
-			// Configure checkpointing if interval is set
-//			long cpInterval = params.getLong("checkpoint", TimeUnit.MINUTES.toMillis(1));
-//			if (cpInterval > 0) {
-//				CheckpointConfig checkpointConf = env.getCheckpointConfig();
-//				checkpointConf.setCheckpointInterval(cpInterval);
-//				checkpointConf.setCheckpointingMode(CheckpointingMode.EXACTLY_ONCE);
-//				checkpointConf.setCheckpointTimeout(TimeUnit.HOURS.toMillis(1));
-//				checkpointConf.enableExternalizedCheckpoints(CheckpointConfig.ExternalizedCheckpointCleanup.RETAIN_ON_CANCELLATION);
-//				env.getConfig().setUseSnapshotCompression(true);
-//
-//			}
-
 
 		} catch (Exception e) {
 			System.err.println(
@@ -115,43 +103,75 @@ public class StreamingJob {
 							+ "type the input text into the command line");
 			return;
 		}
+		DataStreamSource<String> inp = env.socketTextStream(hostname, port, "\n");
 
 
-		// get input data by connecting to the socket
-		DataStream<String> text = env.socketTextStream(hostname, port, "\n");
 
-		// parse the data, group it, window it, and aggregate the counts
-		DataStream<WordWithCount> windowCounts =
-				text.flatMap(
-						new FlatMapFunction<String, WordWithCount>() {
-							@Override
-							public void flatMap(
-									String value, Collector<WordWithCount> out) {
+		//calculates average at final step
+//		DataStream<AverageClass> windowCounts =
+//				inp.flatMap(
+//						new FlatMapFunction<String, AverageClass>() {
+//							@Override
+//							public void flatMap(
+//									String value, Collector<AverageClass> out) {
 //								for (String word : value.split("\\s")) {
-//									out.collect(new WordWithCount(word, 1L));
+//									try {
+//										out.collect(new AverageClass(1L, 0L, Long.valueOf(word)));
+//									}
+//									catch ( NumberFormatException e) {
+//										System.out.println("Enter valid number: "+e.getMessage());
+//									}
 //								}
+//							}
 //
-								WordWithCount a=new WordWithCount();
-								double val=0.0;
-								val=a.GetAvg(value);
-								System.out.println((double)Math.round(val * 100000d) / 100000d);
-								WordWithCount b=new WordWithCount(val);
-								out.collect(b);
-							}
-						});
-//						.keyBy(value -> value.word)
+//
+//						})
+//						.keyBy(value -> 1L)
 //						.window(TumblingProcessingTimeWindows.of(Time.seconds(5)))
 //						.reduce(
-//								new ReduceFunction<WordWithCount>() {
+//								new ReduceFunction<AverageClass>() {
 //									@Override
-//									public WordWithCount reduce(WordWithCount a, WordWithCount b) {
-//										return new WordWithCount(a.word, (Integer.valueOf(a.word)+Integer.valueOf(b.word))/2);
+//									public AverageClass reduce(AverageClass a, AverageClass b) {
+//											numbercount[0] +=1;
+//											return new AverageClass(1L, numbercount[0],(a.sum + b.sum));
 //									}
 //								});
 
-		// print the results with a single thread, rather than in parallel
+
+
+		//calculates double at every 2 values
+		DataStream<AverageClassTwoValue> windowCounts =
+				inp.flatMap(
+						new FlatMapFunction<String, AverageClassTwoValue>() {
+							@Override
+							public void flatMap(
+									String value, Collector<AverageClassTwoValue> out) {
+								for (String word : value.split("\\s")) {
+										try {
+											Double d = Double.valueOf(word);
+											out.collect(new AverageClassTwoValue(1L, d));
+										}
+										catch (NumberFormatException e){
+											System.out.println("Enter valid number: "+e.getMessage());
+										}
+
+								}
+							}
+						})
+						.keyBy(value -> 1L)
+						.window(TumblingProcessingTimeWindows.of(Time.seconds(5)))
+						.reduce(
+								new ReduceFunction<AverageClassTwoValue>() {
+									@Override
+									public AverageClassTwoValue reduce(AverageClassTwoValue a, AverageClassTwoValue b) {
+										return new AverageClassTwoValue(1L,(a.sum + b.sum)/2);
+									}
+								});
+
+
+
 		windowCounts.print().setParallelism(1);
-		System.out.println("Starting on "+hostname+" port: "+String.valueOf(port)+"\n");
+		System.out.println("Starting on "+hostname+" port: "+port+"\n");
 		env.execute("Socket Window WordCount");
 
 	}
