@@ -16,84 +16,81 @@
  * limitations under the License.
  */
 
+
+//--port 9000 --checkpoint 5000
+//-c com.skhillare.flink_avg.StreamingJob
+
 package com.skhillare.flink_avg;
 
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.ReduceFunction;
+import org.apache.flink.api.common.functions.RichFlatMapFunction;
+import org.apache.flink.api.common.state.ListState;
+import org.apache.flink.api.common.state.ValueState;
+import org.apache.flink.api.common.state.ValueStateDescriptor;
+import org.apache.flink.api.common.typeinfo.TypeHint;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.utils.ParameterTool;
+import org.apache.flink.configuration.Configuration;
+import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
+import org.apache.flink.streaming.api.environment.CheckpointConfig;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTimeWindows;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.util.Collector;
 
-
-/**
- * Skeleton for a Flink Streaming Job.
- *
- * <p>For a tutorial how to write a Flink streaming application, check the
- * tutorials and examples on the <a href="http://flink.apache.org/docs/stable/">Flink Website</a>.
- *
- * <p>To package your application into a JAR file for execution, run
- * 'mvn clean package' on the command line.
- *
- * <p>If you change the name of the main class (with the public static void main(String[] args))
- * method, change the respective entry in the POM.xml file (simply search for 'mainClass').
- */
+import java.util.concurrent.TimeUnit;
 
 @SuppressWarnings("serial")
-public class StreamingJob {
+public class StreamingJob extends RichFlatMapFunction<Tuple2<Long, Long>, Tuple2<Long, Long>>  {
+private transient ValueState<Tuple2<Long, Long>> sum;
 
-	public static class AverageClass {
-		long key;
-		long count;
-		long sum;
 
-		public AverageClass(long key,long count,long sum){
-			this.count=count;
-			this.sum=sum;
-			this.key=key;
-		}
-		@Override
-		public String toString() {
-			float fsum=this.sum;
-			float fcount=this.count;
-			return "Average: " + fsum/fcount;
-		}
-
+	//	String input, Collector<Integer> out
+	@Override
+	public void flatMap(Tuple2<Long, Long> input, Collector<Tuple2<Long, Long>> out) throws Exception {
+		// access the state value
+		Tuple2<Long, Long> currentSum = sum.value();
+		currentSum.f0 += 1;
+		currentSum.f1 += input.f1;
+		sum.update(currentSum);
+		System.out.println("Current Sum: "+String.valueOf(sum.value().f1)+"\nCurrent Count: "+String.valueOf(sum.value().f0));
+		out.collect(new Tuple2<>(input.f0, sum.value().f1 / sum.value().f0));
 	}
 
-	public static class AverageClassTwoValue{
-		long key;
-		double sum;
-
-		public AverageClassTwoValue(long key,double sum){
-			this.key=key;
-			this.sum=sum;
-		}
-		@Override
-		public String toString() {
-			return "Average: " + sum;
-		}
+	@Override
+	public void open(Configuration config) {
+		ValueStateDescriptor<Tuple2<Long, Long>> descriptor =
+				new ValueStateDescriptor<>(
+						"average", // the state name
+						TypeInformation.of(new TypeHint<Tuple2<Long, Long>>() {}), // type information
+						Tuple2.of(0L, 0L)); // default value of the state, if nothing was set
+		sum = getRuntimeContext().getState(descriptor);
 	}
+
+
 
 	public static void main(String[] args) throws Exception {
-		final long[] numbercount = {1};
-		// the host and the port to connect to
-		final String hostname;
-		final int port;
-		// get the execution environment
 		final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-
+		final String hostname;
+		final Integer port;
 		try {
 			final ParameterTool params = ParameterTool.fromArgs(args);
-//			hostname="localhost";
-//			port=9000;
 			hostname = params.has("hostname") ? params.get("hostname") : "localhost";
 			port = params.getInt("port");
-
-		} catch (Exception e) {
+			long cpInterval = params.getLong("checkpoint", TimeUnit.MINUTES.toMillis(1));
+			if (cpInterval > 0) {
+				CheckpointConfig checkpointConf = env.getCheckpointConfig();
+				checkpointConf.setCheckpointInterval(cpInterval);
+				checkpointConf.setCheckpointingMode(CheckpointingMode.EXACTLY_ONCE);
+				checkpointConf.setCheckpointTimeout(TimeUnit.HOURS.toMillis(1));
+				checkpointConf.enableExternalizedCheckpoints(CheckpointConfig.ExternalizedCheckpointCleanup.RETAIN_ON_CANCELLATION);
+				env.getConfig().setUseSnapshotCompression(true);
+			}
+		}catch (Exception e) {
 			System.err.println(
 					"No port specified. Please run 'SocketWindowWordCount "
 							+ "--hostname <hostname> --port <port>', where hostname (localhost by default) "
@@ -103,77 +100,32 @@ public class StreamingJob {
 							+ "type the input text into the command line");
 			return;
 		}
+
 		DataStreamSource<String> inp = env.socketTextStream(hostname, port, "\n");
 
-
-
-		//calculates average at final step
-//		DataStream<AverageClass> windowCounts =
-//				inp.flatMap(
-//						new FlatMapFunction<String, AverageClass>() {
-//							@Override
-//							public void flatMap(
-//									String value, Collector<AverageClass> out) {
-//								for (String word : value.split("\\s")) {
-//									try {
-//										out.collect(new AverageClass(1L, 0L, Long.valueOf(word)));
-//									}
-//									catch ( NumberFormatException e) {
-//										System.out.println("Enter valid number: "+e.getMessage());
-//									}
-//								}
-//							}
-//
-//
-//						})
-//						.keyBy(value -> 1L)
-//						.window(TumblingProcessingTimeWindows.of(Time.seconds(5)))
-//						.reduce(
-//								new ReduceFunction<AverageClass>() {
-//									@Override
-//									public AverageClass reduce(AverageClass a, AverageClass b) {
-//											numbercount[0] +=1;
-//											return new AverageClass(1L, numbercount[0],(a.sum + b.sum));
-//									}
-//								});
-
-
-
-		//calculates double at every 2 values
-		DataStream<AverageClassTwoValue> windowCounts =
-				inp.flatMap(
-						new FlatMapFunction<String, AverageClassTwoValue>() {
-							@Override
-							public void flatMap(
-									String value, Collector<AverageClassTwoValue> out) {
-								for (String word : value.split("\\s")) {
-										try {
-											Double d = Double.valueOf(word);
-											out.collect(new AverageClassTwoValue(1L, d));
-										}
-										catch (NumberFormatException e){
-											System.out.println("Enter valid number: "+e.getMessage());
-										}
-
-								}
-							}
-						})
-						.keyBy(value -> 1L)
-						.window(TumblingProcessingTimeWindows.of(Time.seconds(5)))
-						.reduce(
-								new ReduceFunction<AverageClassTwoValue>() {
-									@Override
-									public AverageClassTwoValue reduce(AverageClassTwoValue a, AverageClassTwoValue b) {
-										return new AverageClassTwoValue(1L,(a.sum + b.sum)/2);
-									}
-								});
-
-
-
-		windowCounts.print().setParallelism(1);
-		System.out.println("Starting on "+hostname+" port: "+port+"\n");
-		env.execute("Socket Window WordCount");
-
-	}
+		DataStream<Tuple2<Long,Long>> windowcounts=inp.flatMap(new FlatMapFunction<String, Tuple2<Long, Long>>() {
+			@Override
+			public void flatMap(String inpstr, Collector<Tuple2<Long, Long>> out) throws Exception {
+				for (String word : inpstr.split("\\s")) {
+					try {
+						out.collect(Tuple2.of(1L,Long.valueOf(word)));
+						}
+					catch ( NumberFormatException e) {
+						System.out.println("Enter valid number: "+e.getMessage());
+						}
+				}
+			}
+			}).keyBy(0).flatMap(new StreamingJob());
+			windowcounts.print().setParallelism(1);
+			env.execute("Running!");
+			return;
+		}
 
 }
+
+
+
+
+
+
+
