@@ -56,6 +56,10 @@ private transient ValueState<Tuple2<Long, Long>> sum;
 		Tuple2<Long, Long> currentSum = sum.value();
 		currentSum.f0 += 1;
 		currentSum.f1 += input.f1;
+		//Throw arithmatic exception for checkpoint restarting
+		if (input.f1==155){
+			throw new ArithmeticException("not valid");
+		}
 		sum.update(currentSum);
 		System.out.println("Current Sum: "+String.valueOf(sum.value().f1)+"\nCurrent Count: "+String.valueOf(sum.value().f0));
 		out.collect(new Tuple2<>(input.f0, sum.value().f1 / sum.value().f0));
