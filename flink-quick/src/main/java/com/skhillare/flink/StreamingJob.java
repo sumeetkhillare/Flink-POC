@@ -24,7 +24,16 @@ package com.skhillare.flink;
 
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.ReduceFunction;
+import org.apache.flink.api.common.functions.RichFlatMapFunction;
+import org.apache.flink.api.common.restartstrategy.RestartStrategies;
+import org.apache.flink.api.common.state.ListState;
+import org.apache.flink.api.common.state.ListStateDescriptor;
+import org.apache.flink.api.common.typeinfo.TypeHint;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.utils.ParameterTool;
+import org.apache.flink.configuration.Configuration;
+import org.apache.flink.shaded.curator.org.apache.curator.shaded.com.google.common.collect.Lists;
 import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.CheckpointConfig;
@@ -32,6 +41,13 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTimeWindows;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.util.Collector;
+
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.net.SocketAddress;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -47,30 +63,75 @@ import java.util.concurrent.TimeUnit;
  * method, change the respective entry in the POM.xml file (simply search for 'mainClass').
  */
 
+class Quit extends Exception{
+	Quit(String m1,String inetAddress,int port) throws IOException {
+		super(m1);
+		Socket socket = new Socket();
+		SocketAddress socketAddress=new InetSocketAddress(inetAddress, port);
+		socket.bind(socketAddress);
+		socket.close();
+
+	}
+}
+
+
 
 @SuppressWarnings("serial")
-public class StreamingJob {
+public class StreamingJob extends RichFlatMapFunction<Tuple2<Long, String>, Tuple2<Long, String>> {
+	private ListState<Tuple2<Long, String>> listState;
+
+	private void printstate() throws Exception{
+		ArrayList<Tuple2<Long, String>> listdata = Lists.newArrayList(listState.get());
+		System.out.println("\nliststate data");
+		for (Tuple2<Long, String> data : listdata) {
+			System.out.println(data.f1.toString()+" "+data.f0.toString() );
+		}
+		System.out.print("\n");
+
+	}
+	@Override
+	public void flatMap(Tuple2<Long, String> input, Collector<Tuple2<Long, String>> out) throws Exception {
+		Iterable<Tuple2<Long, String>> state = listState.get();
+		if (null == state) {
+			listState.addAll(Collections.EMPTY_LIST);
+		}
+		ArrayList<Tuple2<Long, String>> listdata = Lists.newArrayList(listState.get());
+
+		Long count = 0L;
+			for (Tuple2<Long, String> data : listdata) {
+
+				if(input.f1.equals("clearstate")){
+					listState.clear();
+					listdata.clear();
+					return;
+				}else
+				if(data.f1.equals(input.f1)){
+					data.f0=data.f0+1;
+					break;
+				}
+				count++;
+			}
+			if(count==listdata.size()){
+				listdata.add(input);
+			}
+			listState.update(listdata);
+
+			out.collect(Tuple2.of(input.f0, input.f1));
+
+		printstate();
+	}
 
 	/** Data type for words with count. */
 
+	@Override
+	public void open(Configuration parameters) throws Exception {
 
-	public static class WordWithCount {
+		ListStateDescriptor<Tuple2<Long, String>> listDis = new ListStateDescriptor<>("wc", TypeInformation.of(new TypeHint<Tuple2<Long, String>>() {
+		}));
 
-		public String word;
-		public long count;
-
-		public WordWithCount() {}
-
-		public WordWithCount(String word, long count) {
-			this.word = word;
-			this.count = count;
-		}
-
-		@Override
-		public String toString() {
-			return word + " : " + count;
-		}
+		listState = getRuntimeContext().getListState(listDis);
 	}
+
 
 	public static void main(String[] args) throws Exception {
 		final String CLASS_NAME = StreamingJob.class.getSimpleName();
@@ -111,36 +172,36 @@ public class StreamingJob {
 			return;
 		}
 
+		//restart attempts after time delay
+		env.setRestartStrategy(RestartStrategies.fixedDelayRestart(3,10000));
+
+		//restart attempts in fixed time
+//		env.setRestartStrategy(RestartStrategies.failureRateRestart(3, Time.of(5, TimeUnit.MINUTES),Time.of(10, TimeUnit.SECONDS)	));
+
+
+
 
 		// get input data by connecting to the socket
 		DataStream<String> text = env.socketTextStream(hostname, port, "\n");
-
-		// parse the data, group it, window it, and aggregate the counts
-		DataStream<WordWithCount> windowCounts =
-				text.flatMap(
-						new FlatMapFunction<String, WordWithCount>() {
-							@Override
-							public void flatMap(
-									String value, Collector<WordWithCount> out) {
-								for (String word : value.split("\\s")) {
-									out.collect(new WordWithCount(word, 1L));
-								}
-							}
-						})
-						.keyBy(value -> value.word)
-						.window(TumblingProcessingTimeWindows.of(Time.seconds(5)))
-						.reduce(
-								new ReduceFunction<WordWithCount>() {
-									@Override
-									public WordWithCount reduce(WordWithCount a, WordWithCount b) {
-										return new WordWithCount(a.word, a.count + b.count);
-									}
-								});
-
+		DataStream<Tuple2<Long,String>> windowCounts=text.flatMap(new FlatMapFunction<String, Tuple2<Long, String>>() {
+			@Override
+			public void flatMap(String inpstr, Collector<Tuple2<Long, String>> out) throws Exception{
+				for (String word : inpstr.split("\\s")) {
+					try {
+						if(word.equals("quit")){
+							throw new Quit( "Stoppping!!!",hostname,port);
+						}
+						out.collect(Tuple2.of(1L, (word)));
+					}catch (Quit ex){
+						System.out.println("Quitting!!!");
+					}
+				}
+			}
+		}).keyBy(0).flatMap(new StreamingJob());
 		// print the results with a single thread, rather than in parallel
-		windowCounts.print().setParallelism(1);
 		System.out.println("Starting on "+hostname+" port: "+String.valueOf(port)+"\n");
-		env.execute("Socket Window WordCount");
+		System.out.println("Use clearstate to clear and quit to exit!\n");
+		env.execute("Wordcount!");
 
 	}
 
