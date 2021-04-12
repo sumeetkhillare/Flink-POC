@@ -23,9 +23,8 @@
 package com.skhillare.flink_avg;
 
 import org.apache.flink.api.common.functions.FlatMapFunction;
-import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.common.functions.RichFlatMapFunction;
-import org.apache.flink.api.common.state.ListState;
+import org.apache.flink.api.common.restartstrategy.RestartStrategies;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.api.common.typeinfo.TypeHint;
@@ -33,26 +32,45 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.shaded.curator.org.apache.curator.shaded.com.google.common.collect.Lists;
 import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.CheckpointConfig;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTimeWindows;
-import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.util.Collector;
+import org.apache.flink.api.common.time.Time;
 
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.net.SocketAddress;
+import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 
-@SuppressWarnings("serial")
-public class StreamingJob extends RichFlatMapFunction<Tuple2<Long, Long>, Tuple2<Long, Long>>  {
+//@SuppressWarnings("serial")
+class QuitValueState extends Exception{
+	QuitValueState(String m1,String inetAddress,int port) throws IOException {
+		super(m1);
+		Socket socket = new Socket();
+		SocketAddress socketAddress=new InetSocketAddress(inetAddress, port);
+		socket.bind(socketAddress);
+		socket.close();
+
+	}
+}
+
+
+
+public class StreamingJob extends RichFlatMapFunction<Tuple2<Long, Long>, Tuple2<Long, Double>>  {
 private transient ValueState<Tuple2<Long, Long>> sum;
 
-
-	//	String input, Collector<Integer> out
 	@Override
-	public void flatMap(Tuple2<Long, Long> input, Collector<Tuple2<Long, Long>> out) throws Exception {
-		// access the state value
+	public void flatMap(Tuple2<Long, Long> input, Collector<Tuple2<Long, Double>> out) throws Exception {
+		if (input.f1==-1){
+			sum.clear();
+			return;
+		}
 		Tuple2<Long, Long> currentSum = sum.value();
 		currentSum.f0 += 1;
 		currentSum.f1 += input.f1;
@@ -61,8 +79,12 @@ private transient ValueState<Tuple2<Long, Long>> sum;
 			throw new ArithmeticException("not valid");
 		}
 		sum.update(currentSum);
-		System.out.println("Current Sum: "+String.valueOf(sum.value().f1)+"\nCurrent Count: "+String.valueOf(sum.value().f0));
-		out.collect(new Tuple2<>(input.f0, sum.value().f1 / sum.value().f0));
+		System.out.println("Current Sum: "+(sum.value().f1)+"\nCurrent Count: "+(sum.value().f0));
+		if (sum.value().f0>=2) {
+			out.collect(new Tuple2<>(input.f0, (Double.valueOf(sum.value().f1) / Double.valueOf(sum.value().f0))));
+//			for two number avg
+//			sum.clear();
+		}
 	}
 
 	@Override
@@ -105,24 +127,39 @@ private transient ValueState<Tuple2<Long, Long>> sum;
 			return;
 		}
 
+		//restart attempts after time delay
+		env.setRestartStrategy(RestartStrategies.fixedDelayRestart(3,10000));
+
+		//restart attempts in fixed time
+//		env.setRestartStrategy(RestartStrategies.failureRateRestart(3, Time.of(5, TimeUnit.MINUTES),Time.of(10, TimeUnit.SECONDS)	));
+
+
 		DataStreamSource<String> inp = env.socketTextStream(hostname, port, "\n");
 
-		DataStream<Tuple2<Long,Long>> windowcounts=inp.flatMap(new FlatMapFunction<String, Tuple2<Long, Long>>() {
+		DataStream<Tuple2<Long,Double>> ValueStateRes=inp.flatMap(new FlatMapFunction<String, Tuple2<Long, Long>>() {
 			@Override
-			public void flatMap(String inpstr, Collector<Tuple2<Long, Long>> out) throws Exception {
+			public void flatMap(String inpstr, Collector<Tuple2<Long, Long>> out) throws Exception{
+
 				for (String word : inpstr.split("\\s")) {
 					try {
-						out.collect(Tuple2.of(1L,Long.valueOf(word)));
+						if(word.equals("quit")){
+							throw new QuitValueState( "Stoppping!!!",hostname,port);
 						}
+						if(word.equals("clear")){
+							word="-1";
+						}
+						out.collect(Tuple2.of(1L, Long.valueOf(word)));
+					}
 					catch ( NumberFormatException e) {
 						System.out.println("Enter valid number: "+e.getMessage());
-						}
+					}catch (QuitValueState ex){
+						System.out.println("Quitting!!!");
+					}
 				}
 			}
-			}).keyBy(0).flatMap(new StreamingJob());
-			windowcounts.print().setParallelism(1);
-			env.execute("Running!");
-			return;
+		}).keyBy(0).flatMap(new StreamingJob());
+			ValueStateRes.print().setParallelism(1);
+			env.execute("Average with ValueState");
 		}
 
 }
