@@ -28,8 +28,10 @@ import org.apache.flink.api.common.functions.RichFlatMapFunction;
 import org.apache.flink.api.common.restartstrategy.RestartStrategies;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
+import org.apache.flink.api.common.time.Time;
 import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.configuration.Configuration;
@@ -38,8 +40,6 @@ import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.CheckpointConfig;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTimeWindows;
-import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.util.Collector;
 
 import java.io.IOException;
@@ -77,7 +77,7 @@ class Quit extends Exception{
 
 
 @SuppressWarnings("serial")
-public class StreamingJob extends RichFlatMapFunction<Tuple2<Long, String>, Tuple2<Long, String>> {
+public class StreamingJob extends RichFlatMapFunction<String, Tuple2<Long, String>> {
 	private ListState<Tuple2<Long, String>> listState;
 
 	private void printstate() throws Exception{
@@ -90,7 +90,7 @@ public class StreamingJob extends RichFlatMapFunction<Tuple2<Long, String>, Tupl
 
 	}
 	@Override
-	public void flatMap(Tuple2<Long, String> input, Collector<Tuple2<Long, String>> out) throws Exception {
+	public void flatMap(String input, Collector<Tuple2<Long, String>> out) throws Exception {
 		Iterable<Tuple2<Long, String>> state = listState.get();
 		if (null == state) {
 			listState.addAll(Collections.EMPTY_LIST);
@@ -100,23 +100,23 @@ public class StreamingJob extends RichFlatMapFunction<Tuple2<Long, String>, Tupl
 		Long count = 0L;
 			for (Tuple2<Long, String> data : listdata) {
 
-				if(input.f1.equals("clearstate")){
+				if(input.equals("clearstate")){
 					listState.clear();
 					listdata.clear();
 					return;
 				}else
-				if(data.f1.equals(input.f1)){
+				if(data.f1.equals(input)){
 					data.f0=data.f0+1;
 					break;
 				}
 				count++;
 			}
 			if(count==listdata.size()){
-				listdata.add(input);
+				listdata.add(Tuple2.of(1L,input));
 			}
 			listState.update(listdata);
 
-			out.collect(Tuple2.of(input.f0, input.f1));
+			out.collect(Tuple2.of(1L, input));
 
 		printstate();
 	}
@@ -183,24 +183,30 @@ public class StreamingJob extends RichFlatMapFunction<Tuple2<Long, String>, Tupl
 
 		// get input data by connecting to the socket
 		DataStream<String> text = env.socketTextStream(hostname, port, "\n");
-		DataStream<Tuple2<Long,String>> windowCounts=text.flatMap(new FlatMapFunction<String, Tuple2<Long, String>>() {
+		DataStream<Tuple2<Long,String>> windowCounts=text.flatMap(new FlatMapFunction<String, String>() {
 			@Override
-			public void flatMap(String inpstr, Collector<Tuple2<Long, String>> out) throws Exception{
+			public void flatMap(String inpstr, Collector<String> out) throws Exception{
 				for (String word : inpstr.split("\\s")) {
 					try {
 						if(word.equals("quit")){
 							throw new Quit( "Stoppping!!!",hostname,port);
 						}
-						out.collect(Tuple2.of(1L, (word)));
+						out.collect(word);
 					}catch (Quit ex){
 						System.out.println("Quitting!!!");
 					}
 				}
 			}
-		}).keyBy(0).flatMap(new StreamingJob());
+		}).name("string-seprator").setParallelism(2).keyBy(new KeySelector<String, Object>() {
+			@Override
+			public Object getKey(String s) throws Exception {
+				return s;
+			}
+		}).flatMap(new StreamingJob()).name("word-count").setParallelism(2);
 		// print the results with a single thread, rather than in parallel
 		System.out.println("Starting on "+hostname+" port: "+String.valueOf(port)+"\n");
 		System.out.println("Use clearstate to clear and quit to exit!\n");
+
 		env.execute("Wordcount!");
 
 	}

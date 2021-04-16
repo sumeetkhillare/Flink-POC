@@ -28,6 +28,8 @@ under the License.
 	<name>Flink Quickstart Job</name>
 	<url>http://www.myorganization.org</url>
 
+
+		<!--	Commented -->
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<flink.version>1.7.2</flink.version>
@@ -54,18 +56,32 @@ under the License.
 	<dependencies>
 		<!-- Apache Flink dependencies -->
 		<!-- These dependencies are provided, because they should not be packaged into the JAR file. -->
+<!--		commented-->
 		<dependency>
 			<groupId>org.apache.flink</groupId>
 			<artifactId>flink-java</artifactId>
 			<version>${flink.version}</version>
 <!--			<scope>provided</scope>-->
 		</dependency>
+
 		<dependency>
 			<groupId>org.apache.flink</groupId>
 			<artifactId>flink-streaming-java_${scala.binary.version}</artifactId>
 			<version>${flink.version}</version>
-<!--			<scope>provided</scope>-->
+			<scope>provided</scope>
 		</dependency>
+<!--		Added-->
+		<dependency>
+			<groupId>org.apache.flink</groupId>
+			<artifactId>flink-core</artifactId>
+			<version>1.7.2</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.flink</groupId>
+			<artifactId>flink-queryable-state-client-java_2.11</artifactId>
+			<version>1.7.2</version>
+		</dependency>
+<!--		End-->
 
 		<!-- Add connector dependencies here. They must be in the default scope (compile). -->
 
@@ -84,6 +100,7 @@ under the License.
 			<groupId>org.slf4j</groupId>
 			<artifactId>slf4j-log4j12</artifactId>
 			<version>1.7.7</version>
+<!--			<version>1.7.21</version>-->
 			<scope>runtime</scope>
 		</dependency>
 		<dependency>
@@ -91,7 +108,9 @@ under the License.
 			<artifactId>log4j</artifactId>
 			<version>1.2.17</version>
 			<scope>runtime</scope>
+
 		</dependency>
+
 	</dependencies>
 
 	<build>
@@ -126,8 +145,9 @@ under the License.
 								<excludes>
 									<exclude>org.apache.flink:force-shading</exclude>
 									<exclude>com.google.code.findbugs:jsr305</exclude>
-									<exclude>org.slf4j:*</exclude>
-									<exclude>log4j:*</exclude>
+<!--									commented-->
+<!--									<exclude>org.slf4j:*</exclude>-->
+<!--									<exclude>log4j:*</exclude>-->
 								</excludes>
 							</artifactSet>
 							<filters>
@@ -213,6 +233,7 @@ under the License.
 			</activation>
 
 			<dependencies>
+<!--				commented-->
 				<dependency>
 					<groupId>org.apache.flink</groupId>
 					<artifactId>flink-java</artifactId>
@@ -223,6 +244,20 @@ under the License.
 					<groupId>org.apache.flink</groupId>
 					<artifactId>flink-streaming-java_${scala.binary.version}</artifactId>
 					<version>${flink.version}</version>
+					<scope>compile</scope>
+				</dependency>
+
+<!--				Added-->
+				<dependency>
+					<groupId>org.apache.flink</groupId>
+					<artifactId>flink-core</artifactId>
+					<version>1.7.2</version>
+					<scope>compile</scope>
+				</dependency>
+				<dependency>
+					<groupId>org.apache.flink</groupId>
+					<artifactId>flink-queryable-state-client-java_2.11</artifactId>
+					<version>1.7.2</version>
 					<scope>compile</scope>
 				</dependency>
 			</dependencies>

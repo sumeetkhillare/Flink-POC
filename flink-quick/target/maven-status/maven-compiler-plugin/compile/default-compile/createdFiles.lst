@@ -2,6 +2,7 @@ com\skhillare\flink\BatchJob$1.class
 com\skhillare\flink\StreamingJob$1.class
 com\skhillare\flink\StreamingJob.class
 com\skhillare\flink\BatchJob$WordWithCount.class
+com\skhillare\flink\StreamingJob$3.class
 com\skhillare\flink\BatchJob$2.class
 com\skhillare\flink\BatchJob.class
 com\skhillare\flink\Quit.class

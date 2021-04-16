@@ -72,8 +72,6 @@
                 <excludes>
                   <exclude>org.apache.flink:force-shading</exclude>
                   <exclude>com.google.code.findbugs:jsr305</exclude>
-                  <exclude>org.slf4j:*</exclude>
-                  <exclude>log4j:*</exclude>
                 </excludes>
               </artifactSet>
               <filters>
@@ -113,6 +111,18 @@
           <version>1.7.2</version>
           <scope>compile</scope>
         </dependency>
+        <dependency>
+          <groupId>org.apache.flink</groupId>
+          <artifactId>flink-core</artifactId>
+          <version>1.7.2</version>
+          <scope>compile</scope>
+        </dependency>
+        <dependency>
+          <groupId>org.apache.flink</groupId>
+          <artifactId>flink-queryable-state-client-java_2.11</artifactId>
+          <version>1.7.2</version>
+          <scope>compile</scope>
+        </dependency>
       </dependencies>
     </profile>
   </profiles>
@@ -127,20 +137,6 @@
       <url>https://repository.apache.org/content/repositories/snapshots/</url>
     </repository>
   </repositories>
-  <dependencies>
-    <dependency>
-      <groupId>org.slf4j</groupId>
-      <artifactId>slf4j-log4j12</artifactId>
-      <version>1.7.7</version>
-      <scope>runtime</scope>
-    </dependency>
-    <dependency>
-      <groupId>log4j</groupId>
-      <artifactId>log4j</artifactId>
-      <version>1.2.17</version>
-      <scope>runtime</scope>
-    </dependency>
-  </dependencies>
   <properties>
     <java.version>1.8</java.version>
     <scala.binary.version>2.11</scala.binary.version>
