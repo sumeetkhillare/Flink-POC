@@ -20,8 +20,6 @@ package com.dataartisans.queryablestatedemo;
 
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.RichFlatMapFunction;
-import org.apache.flink.api.common.state.FoldingStateDescriptor;
-import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.api.common.typeinfo.TypeHint;
@@ -31,22 +29,17 @@ import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.configuration.ConfigConstants;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.QueryableStateOptions;
-import org.apache.flink.hadoop.shaded.com.google.common.collect.Lists;
 import org.apache.flink.runtime.jobgraph.JobGraph;
 import org.apache.flink.runtime.minicluster.FlinkMiniCluster;
 import org.apache.flink.runtime.minicluster.LocalFlinkMiniCluster;
-import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.util.Collector;
-import scala.util.parsing.combinator.testing.Str;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketAddress;
-import java.util.ArrayList;
-import java.util.Collections;
 
 class QuitValueState extends Exception{
     QuitValueState(String m1,String inetAddress,int port) throws IOException {
@@ -79,8 +72,8 @@ public class FlinkJob extends RichFlatMapFunction<Tuple2<Long, Long>, Tuple2<Str
         sum.update(currentSum);
         System.out.println("Current Sum: "+(sum.value().f1)+"\nCurrent Count: "+(sum.value().f0));
         if (sum.value().f0>=2) {
-            out.collect(new Tuple2<>("aaa", "Value"));
-            out.collect(new Tuple2<>("abb","value2"));
+            double avg=(Double.valueOf(sum.value().f1) / Double.valueOf(sum.value().f0));
+            out.collect(new Tuple2<>(String.valueOf(avg),"avg"));
         }
     }
     @Override
@@ -90,14 +83,12 @@ public class FlinkJob extends RichFlatMapFunction<Tuple2<Long, Long>, Tuple2<Str
                         "average", // the state name
                         TypeInformation.of(new TypeHint<Tuple2<Long, Long>>() {}), // type information
                         Tuple2.of(0L, 0L)); // default value of the state, if nothing was set
-//    descriptor.setQueryable("average");
         sum = getRuntimeContext().getState(descriptor);
     }
     public final static String QUERY_NAME = "average-query";
     public transient ValueState<Tuple2<Long, Long>> sum;
     public static void main(String[] args) throws Exception {
         ParameterTool params = ParameterTool.fromArgs(args);
-        final boolean printThroughput = params.getBoolean("printThroughput", true);
         final int parallelism = params.getInt("parallelism", 1);
 
         Configuration config = new Configuration();
@@ -116,12 +107,6 @@ public class FlinkJob extends RichFlatMapFunction<Tuple2<Long, Long>, Tuple2<Str
 
             final String hostname="localhost";
             DataStreamSource<String> inp = env.socketTextStream(hostname, 9000, "\n");
-
-            ValueStateDescriptor<Tuple2<String, String>> descriptor =
-                    new ValueStateDescriptor<>(
-                            "average2", // the state name
-                            TypeInformation.of(new TypeHint<Tuple2<String, String>>() {}), // type information
-                            Tuple2.of("aaa", "value1")); // default value of the state, if nothing was set
 
             inp.flatMap(new FlatMapFunction<String, Tuple2<Long, Long>>() {
                 @Override
@@ -145,8 +130,8 @@ public class FlinkJob extends RichFlatMapFunction<Tuple2<Long, Long>, Tuple2<Str
                     }
                 }
             }).keyBy(0).flatMap(new FlinkJob())
-                    .keyBy(0).
-                    asQueryableState(QUERY_NAME,descriptor);
+                    .keyBy(1)
+                    .asQueryableState(QUERY_NAME);
 
             JobGraph jobGraph = env.getStreamGraph().getJobGraph();
 

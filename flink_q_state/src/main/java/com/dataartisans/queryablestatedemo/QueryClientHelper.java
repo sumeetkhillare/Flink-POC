@@ -20,12 +20,9 @@ package com.dataartisans.queryablestatedemo;
 
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import org.apache.flink.api.common.JobID;
-import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.time.Time;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
-import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.ConfigConstants;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.query.QueryableStateClient;
@@ -94,7 +91,7 @@ public class QueryClientHelper<K, V> implements AutoCloseable {
   }
 
   @Override
-  public void close() throws Exception {
+  public void close() {
     client.shutDown();
   }
 
