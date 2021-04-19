@@ -10,4 +10,4 @@ if [ ! -f $target ]; then
 fi
 
 echo "[info] Executing EventCountJob from queryablestatedemo-1.0-SNAPSHOT.jar (exit via Control+C)"
-java -cp $target com.dataartisans.queryablestatedemo.EventCountJob
+java -cp $target com.dataartisans.queryablestatedemo.FlinkJob

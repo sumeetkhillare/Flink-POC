@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+#Use this if [ERROR] Failed to construct terminal
+#export TERM=xterm-color
 
 base="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 target="$base/target/queryablestatedemo-1.0-SNAPSHOT.jar"
@@ -21,4 +23,4 @@ fi
 
 echo "[info] Executing EventCountClient from queryablestatedemo-1.0-SNAPSHOT.jar (exit via Control+C)"
 echo ""
-java -cp $target com.dataartisans.queryablestatedemo.EventCountClient $jobId
+java -cp $target com.dataartisans.queryablestatedemo.FlinkClientQuery $jobId
