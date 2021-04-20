@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #Use this if [ERROR] Failed to construct terminal
-#export TERM=xterm-color
+export TERM=xterm-color
 
 base="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 target="$base/target/queryablestatedemo-1.0-SNAPSHOT.jar"

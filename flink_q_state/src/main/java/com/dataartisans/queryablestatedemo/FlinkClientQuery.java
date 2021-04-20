@@ -38,16 +38,19 @@ public class FlinkClientQuery {
         }
         String jobIdParam = args[0];
 
-        // Configuration
+        // Configuration for local
         final String jobManagerHost = args.length > 1 ? args[1] : "localhost";
         final int jobManagerPort = args.length > 1 ? Integer.parseInt(args[1]) : 6124;
+
+        //Configuration for Jar
+//        final String jobManagerHost = args.length > 1 ? args[1] : "127.0.1.1";
+//        final int jobManagerPort = args.length > 1 ? Integer.parseInt(args[1]) : 9069;
 
         System.out.println("Using JobManager " + jobManagerHost + ":" + jobManagerPort);
 
         final JobID jobId = JobID.fromHexString(jobIdParam);
 
         final StringSerializer keySerializer = StringSerializer.INSTANCE;
-//    final LongSerializer valueSerializer = LongSerializer.INSTANCE;
         final StringSerializer valueSerializer = StringSerializer.INSTANCE;
         final Time queryTimeout = Time.seconds(5);
 

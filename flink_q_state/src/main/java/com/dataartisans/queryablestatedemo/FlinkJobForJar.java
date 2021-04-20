@@ -1,23 +1,6 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package com.dataartisans.queryablestatedemo;
 
+import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.RichFlatMapFunction;
 import org.apache.flink.api.common.state.ValueState;
@@ -29,23 +12,26 @@ import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.configuration.ConfigConstants;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.QueryableStateOptions;
+import org.apache.flink.configuration.TaskManagerOptions;
 import org.apache.flink.runtime.jobgraph.JobGraph;
 import org.apache.flink.runtime.minicluster.FlinkMiniCluster;
 import org.apache.flink.runtime.minicluster.LocalFlinkMiniCluster;
-import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
-import org.apache.flink.streaming.api.environment.CheckpointConfig;
+import org.apache.flink.streaming.api.environment.LocalStreamEnvironment;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.graph.StreamGraph;
 import org.apache.flink.util.Collector;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketAddress;
-import java.util.concurrent.TimeUnit;
 
-class QuitValueState extends Exception{
-    QuitValueState(String m1,String inetAddress,int port) throws IOException {
+//To run on bash
+//./bin/flink run -c com.dataartisans.queryablestatedemo.FlinkJobForJar ~/queryablestatedemo-1.0-SNAPSHOT.jar
+
+class QuitValueStateForJar extends Exception{
+    QuitValueStateForJar(String m1,String inetAddress,int port) throws IOException {
         super(m1);
         Socket socket = new Socket();
         SocketAddress socketAddress=new InetSocketAddress(inetAddress, port);
@@ -54,10 +40,7 @@ class QuitValueState extends Exception{
 
     }
 }
-
-
-public class FlinkJob extends RichFlatMapFunction<Tuple2<Long, Long>, Tuple2<String, String>> {
-
+public class FlinkJobForJar extends RichFlatMapFunction<Tuple2<Long, Long>, Tuple2<String, String>>  {
     @Override
     public void flatMap(Tuple2<Long, Long> input, Collector<Tuple2<String, String>> out) throws Exception {
         if (input.f1==-1){
@@ -88,44 +71,17 @@ public class FlinkJob extends RichFlatMapFunction<Tuple2<Long, Long>, Tuple2<Str
                         Tuple2.of(0L, 0L)); // default value of the state, if nothing was set
         sum = getRuntimeContext().getState(descriptor);
     }
-
     public final static String QUERY_NAME = "average-query";
     public transient ValueState<Tuple2<Long, Long>> sum;
-
     public static void main(String[] args) throws Exception {
         ParameterTool params = ParameterTool.fromArgs(args);
         final int parallelism = params.getInt("parallelism", 1);
+        final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
-        Configuration config = new Configuration();
-        config.setInteger(ConfigConstants.JOB_MANAGER_IPC_PORT_KEY, 6124);
-        config.setInteger(ConfigConstants.LOCAL_NUMBER_TASK_MANAGER, 1);
-        config.setInteger(ConfigConstants.TASK_MANAGER_NUM_TASK_SLOTS, parallelism);
-        // In a non MiniCluster setup queryable state is enabled by default.
-        config.setBoolean(QueryableStateOptions.SERVER_ENABLE, true);
-        config.setString(ConfigConstants.CHECKPOINTS_DIRECTORY_KEY,"/user");
+        final String hostname="localhost";
+        DataStreamSource<String> inp = env.socketTextStream(hostname, 9000, "\n");
 
-        FlinkMiniCluster flinkCluster = new LocalFlinkMiniCluster(config, false);
-        try {
-            flinkCluster.start(true);
-
-            StreamExecutionEnvironment env = StreamExecutionEnvironment
-                    .createRemoteEnvironment("localhost", 6124, parallelism);
-
-            final String hostname="localhost";
-
-            long cpInterval =params.has("hostname") ? params.getLong("checkpoint", TimeUnit.MINUTES.toMillis(1)) : 2000;
-            if (cpInterval > 0) {
-                CheckpointConfig checkpointConf = env.getCheckpointConfig();
-                checkpointConf.setCheckpointInterval(cpInterval);
-                checkpointConf.setCheckpointingMode(CheckpointingMode.EXACTLY_ONCE);
-                checkpointConf.setCheckpointTimeout(TimeUnit.HOURS.toMillis(1));
-                checkpointConf.enableExternalizedCheckpoints(CheckpointConfig.ExternalizedCheckpointCleanup.RETAIN_ON_CANCELLATION);
-
-            }
-
-            DataStreamSource<String> inp = env.socketTextStream(hostname, 9000, "\n");
-
-            inp.flatMap(new FlatMapFunction<String, Tuple2<Long, Long>>() {
+        inp.flatMap(new FlatMapFunction<String, Tuple2<Long, Long>>() {
                 @Override
                 public void flatMap(String inpstr, Collector<Tuple2<Long, Long>> out) throws Exception{
 
@@ -146,19 +102,13 @@ public class FlinkJob extends RichFlatMapFunction<Tuple2<Long, Long>, Tuple2<Str
                         }
                     }
                 }
-            }).keyBy(0).flatMap(new FlinkJob())
+            }).keyBy(0).flatMap(new FlinkJobForJar())
                     .keyBy(1)
                     .asQueryableState(QUERY_NAME);
-
-            JobGraph jobGraph = env.getStreamGraph().getJobGraph();
 
             System.out.println("Submitting Job");
             System.out.println();
             env.execute();
-            flinkCluster.submitJobAndWait(jobGraph, false);
-        } finally {
-            flinkCluster.shutdown();
-        }
-    }
 
+    }
 }
