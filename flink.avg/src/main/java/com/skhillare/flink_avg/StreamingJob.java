@@ -67,40 +67,40 @@ class QuitValueState extends Exception{
 
 
 
-public class StreamingJob extends RichFlatMapFunction<Tuple2<Long, Long>, Tuple2<Long, Double>>  {
-private transient ValueState<Tuple2<Long, Long>> sum;
+public class StreamingJob extends RichFlatMapFunction<Tuple2<Long, Long>, Tuple2<Long, String>>  {
+private transient ValueState<Tuple2<Long, String>> sum;
 
 	@Override
-	public void flatMap(Tuple2<Long, Long> input, Collector<Tuple2<Long, Double>> out) throws Exception {
+	public void flatMap(Tuple2<Long, Long> input, Collector<Tuple2<Long, String>> out) throws Exception {
 		if (input.f1==-1){
 			sum.clear();
 			return;
 		}
-		Tuple2<Long, Long> currentSum = sum.value();
-		currentSum.f0 += 1;
-		currentSum.f1 += input.f1;
+		Tuple2<Long, String> currentSum = sum.value();
+//		currentSum.f0 += 1;
+		currentSum.f0 += input.f1;
 		//Throw arithmatic exception for checkpoint restarting
 		if (input.f1==155){
 			throw new ArithmeticException("not valid");
 		}
-
 		sum.update(currentSum);
 		System.out.println("Current Sum: "+(sum.value().f1)+"\nCurrent Count: "+(sum.value().f0));
-		if (sum.value().f0>=2) {
-			out.collect(new Tuple2<>(input.f0, (Double.valueOf(sum.value().f1) / Double.valueOf(sum.value().f0))));
+//		if (sum.value().f0>=2) {
+			out.collect(new Tuple2<>(input.f1, "avg"));
 //			for two number avg
 //			sum.clear();
-		}
+//		}
 	}
 
 	@Override
 	public void open(Configuration config) {
-		ValueStateDescriptor<Tuple2<Long, Long>> descriptor =
+		ValueStateDescriptor<Tuple2<Long, String>> descriptor =
 				new ValueStateDescriptor<>(
-						"average", // the state name
-						TypeInformation.of(new TypeHint<Tuple2<Long, Long>>() {}), // type information
-						Tuple2.of(0L, 0L)); // default value of the state, if nothing was set
-		descriptor.setQueryable("query-name");
+						"average",// the state name
+						TypeInformation.of(new TypeHint<Tuple2<Long, String>>() {}), // type information
+						Tuple2.of(0L, "avg")
+				); // default value of the state, if nothing was set
+//		descriptor.setQueryable("query-name");
 		sum = getRuntimeContext().getState(descriptor);
 
 	}
@@ -147,7 +147,12 @@ private transient ValueState<Tuple2<Long, Long>> sum;
 
 		//restart attempts in fixed time
 //		env.setRestartStrategy(RestartStrategies.failureRateRestart(3, Time.of(5, TimeUnit.MINUTES),Time.of(10, TimeUnit.SECONDS)	));
-
+		ValueStateDescriptor<Tuple2<Long, String>> descriptor =
+				new ValueStateDescriptor<>(
+						"average",// the state name
+						TypeInformation.of(new TypeHint<Tuple2<Long, String>>() {}), // type information
+						Tuple2.of(0L, "avg")
+				);
 
 		DataStreamSource<String> inp = env.socketTextStream(hostname, port, "\n");
 
@@ -174,7 +179,7 @@ private transient ValueState<Tuple2<Long, Long>> sum;
 				}
 			}
 		}).keyBy(0).flatMap(new StreamingJob())
-						.keyBy(0).asQueryableState("query-name");
+						.keyBy(1).asQueryableState("query-name",descriptor);
 //			ValueStateRes.print().setParallelism(1);
 
 		JobGraph jobGraph = env.getStreamGraph().getJobGraph();

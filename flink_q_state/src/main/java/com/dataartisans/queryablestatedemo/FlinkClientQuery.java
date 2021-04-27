@@ -40,7 +40,7 @@ public class FlinkClientQuery {
 
         // Configuration for local
         final String jobManagerHost = args.length > 1 ? args[1] : "localhost";
-        final int jobManagerPort = args.length > 1 ? Integer.parseInt(args[1]) : 6124;
+        final int jobManagerPort = args.length > 1 ? Integer.parseInt(args[2]) : 6123;
 
         //Configuration for Jar
 //        final String jobManagerHost = args.length > 1 ? args[1] : "127.0.1.1";
@@ -52,7 +52,7 @@ public class FlinkClientQuery {
 
         final StringSerializer keySerializer = StringSerializer.INSTANCE;
         final StringSerializer valueSerializer = StringSerializer.INSTANCE;
-        final Time queryTimeout = Time.seconds(5);
+        final Time queryTimeout = Time.seconds(60);
 
 
 
