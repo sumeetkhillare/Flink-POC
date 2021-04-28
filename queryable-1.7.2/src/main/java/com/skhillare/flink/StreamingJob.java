@@ -108,7 +108,7 @@ public class StreamingJob extends RichFlatMapFunction<Tuple2<String, Long>, Tupl
 						Q_NAME, // the state name
 						TypeInformation.of(new TypeHint<Tuple2<String, Long>>() {}), // type information
 						Tuple2.of(Q_NAME, 0L)); // default value of the state, if nothing was set
-//		descriptor.setQueryable("query-name");
+		descriptor.setQueryable(Q_NAME);
 		sum = getRuntimeContext().getState(descriptor);
 	}
 	public static void main(String[] args) throws Exception {
@@ -144,8 +144,9 @@ public class StreamingJob extends RichFlatMapFunction<Tuple2<String, Long>, Tupl
 					}
 				}
 			}
-		}).name("Input Conversion").keyBy(0).flatMap(new StreamingJob()).name("Store in State").keyBy(0)
-				.asQueryableState(Q_NAME,descriptor);
+		}).name("Input Conversion").keyBy(0).flatMap(new StreamingJob()).name("Store in State");
+//				.keyBy(0)
+//				.asQueryableState(Q_NAME,descriptor);
 		JobGraph jobGraph = env.getStreamGraph().getJobGraph();
 //		System.out.println("[info] Job ID: " + jobGraph.getJobID());
 		System.out.println("Running!!!");
