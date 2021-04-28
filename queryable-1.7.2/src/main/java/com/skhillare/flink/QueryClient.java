@@ -1,66 +1,92 @@
 package com.skhillare.flink;
-
+import java.io.PrintWriter;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import jline.console.ConsoleReader;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.JobID;
-import org.apache.flink.api.common.state.StateDescriptor;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
-import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.core.memory.DataInputDeserializer;
 import org.apache.flink.queryablestate.client.QueryableStateClient;
-import scala.concurrent.Await;
-import java.io.IOException;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.security.Key;
-import java.sql.Time;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-
+import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 //com.skhillare.flink_avg.QueryClass
-//java -cp ./target/flink.avg-1.0-SNAPSHOT.jar com.skhillare.flink_avg.QueryClass
+//java -cp ./target/flink-quick-1.0-SNAPSHOT.jar com.skhillare.flink.QueryClass
 
-//        Future<ValueState<Tuple2<Long, Long>>> val= calculateAsync(jobId,"query-name",1L,descriptor);
-//        System.out.println("querying!!!");
-//        System.out.println(val);
+public class QueryClient {
 
-public class QueryClient{
-    public static Future<ValueState<Tuple2<Long, Long>>> calculateAsync(JobID jobId, String name, long key, StateDescriptor stateDescriptor) throws InterruptedException, UnknownHostException {
-        QueryableStateClient client = new QueryableStateClient("127.0.1.1", 9069);
-        CompletableFuture<ValueState<Tuple2<Long, Long>>> resultFuture =
-                client.getKvState(jobId, name, 1L, BasicTypeInfo.LONG_TYPE_INFO, stateDescriptor);
-        return resultFuture;
-    }
+    public static void main(String[] args) throws Exception {
+        if (args.length == 0) {
+            throw new IllegalArgumentException("Missing required job ID argument. "
+                    + "Usage: ./EventCountClient <jobID>");
+        }
+        String jobIdParam = args[0];
 
-    public static void main(String[] args) throws IOException, InterruptedException, Exception {
-        QueryableStateClient client = new QueryableStateClient("127.0.1.1", 9069);
+        // configuration
+        final JobID jobId = JobID.fromHexString(jobIdParam);
+        final String jobManagerHost = "127.0.1.1";
+        final int jobManagerPort = 9069;
+
+        QueryableStateClient client = new QueryableStateClient(jobManagerHost, jobManagerPort);
         client.setExecutionConfig(new ExecutionConfig());
-        System.out.println("Querying on "+args[0]);
-        JobID jobId = JobID.fromHexString(args[0]);
-//        // the state descriptor of the state to be fetched.
+
         ValueStateDescriptor<Tuple2<String, Long>> descriptor =
                 new ValueStateDescriptor<>(
-                        "average",
+                        StreamingJob.Q_NAME, // the state name
                         TypeInformation.of(new TypeHint<Tuple2<String, Long>>() {
-                        }));
+                        }), // type information
+                        Tuple2.of("avg", 0L));
 
+        System.out.println("Using JobManager " + jobManagerHost + ":" + jobManagerPort);
+        printUsage();
 
-        CompletableFuture<ValueState<Tuple2<String, Long>>> resultFuture =
-                client.getKvState(jobId, "query-name", "avg", BasicTypeInfo.STRING_TYPE_INFO, descriptor);
-        System.out.println(resultFuture);
-        resultFuture.thenAccept(response -> {
+        ConsoleReader reader = new ConsoleReader();
+        reader.setPrompt("$ ");
+        PrintWriter out = new PrintWriter(reader.getOutput());
+
+        String line;
+        while ((line = reader.readLine()) != null) {
+            String key = line.toLowerCase().trim();
+            out.printf("[info] Querying key '%s'\n", key);
+
             try {
-                Tuple2<String, Long> res = response.value();
-                System.out.println("Queried sum value: " + res);
+                long start = System.currentTimeMillis();
+
+                CompletableFuture<ValueState<Tuple2<String, Long>>> resultFuture =
+                        client.getKvState(jobId, StreamingJob.Q_NAME, key, BasicTypeInfo.STRING_TYPE_INFO, descriptor);
+
+                resultFuture.thenAccept(response -> {
+                    try {
+                        Tuple2<String, Long> res = response.value();
+                        long end = System.currentTimeMillis();
+                        long duration = Math.max(0, end - start);
+                        if (res != null) {
+                            out.printf("%s (query took %d ms)\n", res.toString(), duration);
+                        } else {
+                            out.printf("Unknown key %s (query took %d ms)\n", key, duration);
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                });
+
+                resultFuture.get(5, TimeUnit.SECONDS);
+
             } catch (Exception e) {
-                e.printStackTrace();
+                System.out.println("Unknown Key or Job is failed...\nEnter `query` as key.");
             }
-            System.out.println("Exiting future ...");
-        });
+
+        }
+
+    }
+    private static void printUsage() {
+        System.out.println("Enter a key to query.");
+        System.out.println();
+        System.out.println("The StreamingJob " + StreamingJob.Q_NAME + " state instance "
+                + "has key `query`.");
+        System.out.println();
     }
 
 }
