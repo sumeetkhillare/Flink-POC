@@ -5,10 +5,7 @@ import java.util.concurrent.TimeUnit;
 import jline.console.ConsoleReader;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.JobID;
-import org.apache.flink.api.common.state.ListState;
-import org.apache.flink.api.common.state.ListStateDescriptor;
-import org.apache.flink.api.common.state.ValueState;
-import org.apache.flink.api.common.state.ValueStateDescriptor;
+import org.apache.flink.api.common.state.*;
 import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.tuple.Tuple2;
@@ -47,6 +44,11 @@ public class QueryClient {
                         TypeInformation.of(new TypeHint<Tuple2<String, Long>>() {
                         }));
 
+        MapStateDescriptor<String, Long> mapStateDes = new MapStateDescriptor<>(
+                StreamingJob.Map_Q_NAME,
+                String.class,
+                Long.class);
+
         System.out.println("Using JobManager " + jobManagerHost + ":" + jobManagerPort);
         printUsage();
 
@@ -66,6 +68,9 @@ public class QueryClient {
                             client.getKvState(jobId, StreamingJob.Q_NAME, key, BasicTypeInfo.STRING_TYPE_INFO, descriptor);
                     CompletableFuture<ListState<Tuple2<String, Long>>> resultFutureList =
                                 client.getKvState(jobId, StreamingJob.List_Q_NAME, key, BasicTypeInfo.STRING_TYPE_INFO, listDis);
+                    CompletableFuture<MapState<String, Long>> resultFutureMap =
+                            client.getKvState(jobId, StreamingJob.Map_Q_NAME, key, BasicTypeInfo.STRING_TYPE_INFO, mapStateDes);
+
                     resultFuture.thenAccept(response -> {
                         try {
                             Tuple2<String, Long> res = response.value();
@@ -96,8 +101,23 @@ public class QueryClient {
                                     e.printStackTrace();
                                 }
                     });
+                    resultFutureMap.thenAccept(response -> {
+                        try {
+                            Long res = response.get(StreamingJob.statekey);
+                            long end = System.currentTimeMillis();
+                            long duration = Math.max(0, end - start);
+                            if (res != null) {
+                                out.printf("\nMapState:\n%s (query took %d ms)\n", res.toString(), duration);
+                            } else {
+                                out.printf("\nMapState:\nUnknown key %s (query took %d ms)\n", key, duration);
+                            }
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    });
                     resultFutureList.get(5, TimeUnit.SECONDS);
                     resultFuture.get(5, TimeUnit.SECONDS);
+                    resultFutureMap.get(5,TimeUnit.SECONDS);
 
                     } catch (Exception e) {
                         out.printf("Error Processing!!!\n");

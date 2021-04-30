@@ -47,10 +47,7 @@ package com.skhillare.flink;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.RichFlatMapFunction;
 import org.apache.flink.api.common.restartstrategy.RestartStrategies;
-import org.apache.flink.api.common.state.ListState;
-import org.apache.flink.api.common.state.ListStateDescriptor;
-import org.apache.flink.api.common.state.ValueState;
-import org.apache.flink.api.common.state.ValueStateDescriptor;
+import org.apache.flink.api.common.state.*;
 import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.tuple.Tuple2;
@@ -65,6 +62,7 @@ import org.apache.flink.streaming.api.environment.CheckpointConfig;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.util.Collector;
 import org.apache.flink.api.common.time.Time;
+import scala.util.parsing.json.JSONObject;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -72,6 +70,8 @@ import java.net.Socket;
 import java.net.SocketAddress;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 //@SuppressWarnings("serial")
@@ -88,12 +88,15 @@ class QuitValueState extends Exception{
 
 
 
-public class StreamingJob extends RichFlatMapFunction<Tuple2<String, Long>, Tuple2<String, Long>> {
+public class StreamingJob extends RichFlatMapFunction<Tuple2<String, Long>, Tuple2<String, Long>>  {
 	public final static String Q_NAME = "query";
 	public transient ValueState<Tuple2<String, Long>> sum;
 	public final static String List_Q_NAME = "list-query";
 	private ListState<Tuple2<String, Long>> listState;
 	public final static String statekey = "statekey";
+	private transient MapState<String, Long> mapState;
+	public final static String Map_Q_NAME = "map-query";
+
 	private void printstate() throws Exception{
 		ArrayList<Tuple2<String, Long>> listdata = Lists.newArrayList(listState.get());
 		System.out.println("liststate data");
@@ -112,6 +115,7 @@ public class StreamingJob extends RichFlatMapFunction<Tuple2<String, Long>, Tupl
 		if (input.f1==-1){
 			listState.clear();
 			sum.clear();
+			mapState.clear();
 			return;
 		}
 		listState.add(input);
@@ -120,7 +124,10 @@ public class StreamingJob extends RichFlatMapFunction<Tuple2<String, Long>, Tupl
 		Tuple2<String, Long> currentSum = sum.value();
 		currentSum.f1 += input.f1;
 		sum.update(currentSum);
-		System.out.println("Current Sum: "+(sum.value().f1)+"\nCurrent Count: "+(sum.value().f0));
+		System.out.println("Current Sum: "+(sum.value().f1));
+		mapState.put(statekey,sum.value().f1);
+		System.out.println("MapState:");
+		System.out.println(String.valueOf(mapState.get(statekey)));
 
 //		out.collect(new Tuple2<>(Q_NAME, sum.value().f1));
 
@@ -139,6 +146,15 @@ public class StreamingJob extends RichFlatMapFunction<Tuple2<String, Long>, Tupl
 		}));
 		listDis.setQueryable(List_Q_NAME);
 		listState = getRuntimeContext().getListState(listDis);
+
+		MapStateDescriptor<String, Long> mapStateDes = new MapStateDescriptor<>(
+				Map_Q_NAME,
+				String.class,
+				Long.class);
+		mapStateDes.setQueryable(Map_Q_NAME);
+		mapState = getRuntimeContext().getMapState(mapStateDes);
+
+
 	}
 	public static void main(String[] args) throws Exception {
 		final String hostname;
@@ -169,6 +185,7 @@ public class StreamingJob extends RichFlatMapFunction<Tuple2<String, Long>, Tupl
 			return;
 		}
 
+
 		DataStreamSource<String> inp = env.socketTextStream(hostname, port, "\n");
 
 		inp.flatMap(new FlatMapFunction<String, Tuple2<String, Long>>() {
@@ -183,6 +200,7 @@ public class StreamingJob extends RichFlatMapFunction<Tuple2<String, Long>, Tupl
 						if(word.equals("clear")){
 							word="-1";
 						}
+
 						out.collect(Tuple2.of(statekey, Long.valueOf(word)));
 					}
 					catch ( NumberFormatException e) {
