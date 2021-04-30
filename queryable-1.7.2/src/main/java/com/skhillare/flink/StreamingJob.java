@@ -47,6 +47,8 @@ package com.skhillare.flink;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.RichFlatMapFunction;
 import org.apache.flink.api.common.restartstrategy.RestartStrategies;
+import org.apache.flink.api.common.state.ListState;
+import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.api.common.typeinfo.TypeHint;
@@ -69,6 +71,7 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketAddress;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
 //@SuppressWarnings("serial")
@@ -88,18 +91,39 @@ class QuitValueState extends Exception{
 public class StreamingJob extends RichFlatMapFunction<Tuple2<String, Long>, Tuple2<String, Long>> {
 	public final static String Q_NAME = "query";
 	public transient ValueState<Tuple2<String, Long>> sum;
+	public final static String List_Q_NAME = "list-query";
+	private ListState<Tuple2<String, Long>> listState;
+	public final static String statekey = "statekey";
+	private void printstate() throws Exception{
+		ArrayList<Tuple2<String, Long>> listdata = Lists.newArrayList(listState.get());
+		System.out.println("liststate data");
+		for (Tuple2<String, Long> data : listdata) {
+			System.out.print(data.f1.toString()+" ");
+		}
+		System.out.print("\n");
 
+	}
 	@Override
 	public void flatMap(Tuple2<String, Long> input, Collector<Tuple2<String, Long>> out) throws Exception {
-		Tuple2<String, Long> currentSum = sum.value();
+		Iterable<Tuple2<String, Long>> state = listState.get();
+		if (null == state) {
+			listState.addAll(Collections.EMPTY_LIST);
+		}
 		if (input.f1==-1){
+			listState.clear();
 			sum.clear();
 			return;
 		}
+		listState.add(input);
+		printstate();
+
+		Tuple2<String, Long> currentSum = sum.value();
 		currentSum.f1 += input.f1;
 		sum.update(currentSum);
 		System.out.println("Current Sum: "+(sum.value().f1)+"\nCurrent Count: "+(sum.value().f0));
-		out.collect(new Tuple2<>(Q_NAME, sum.value().f1));
+
+//		out.collect(new Tuple2<>(Q_NAME, sum.value().f1));
+
 	}
 	@Override
 	public void open(Configuration config) {
@@ -107,19 +131,43 @@ public class StreamingJob extends RichFlatMapFunction<Tuple2<String, Long>, Tupl
 				new ValueStateDescriptor<>(
 						Q_NAME, // the state name
 						TypeInformation.of(new TypeHint<Tuple2<String, Long>>() {}), // type information
-						Tuple2.of(Q_NAME, 0L)); // default value of the state, if nothing was set
+						Tuple2.of(statekey, 0L)); // default value of the state, if nothing was set
 		descriptor.setQueryable(Q_NAME);
 		sum = getRuntimeContext().getState(descriptor);
+
+		ListStateDescriptor<Tuple2<String, Long>> listDis = new ListStateDescriptor<>(List_Q_NAME, TypeInformation.of(new TypeHint<Tuple2<String, Long>>() {
+		}));
+		listDis.setQueryable(List_Q_NAME);
+		listState = getRuntimeContext().getListState(listDis);
 	}
 	public static void main(String[] args) throws Exception {
-		final String hostname="localhost";
-		final Integer port=9000;
+		final String hostname;
+		final Integer port;
 		final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-		ValueStateDescriptor<Tuple2<String, Long>> descriptor =
-				new ValueStateDescriptor<>(
-						Q_NAME, // the state name
-						TypeInformation.of(new TypeHint<Tuple2<String, Long>>() {}), // type information
-						Tuple2.of("avg", 0L));
+
+		try {
+			final ParameterTool params = ParameterTool.fromArgs(args);
+			hostname = params.has("hostname") ? params.get("hostname") : "localhost";
+			port = params.getInt("port");
+			long cpInterval = params.getLong("checkpoint", TimeUnit.MINUTES.toMillis(1));
+			if (cpInterval > 0) {
+				CheckpointConfig checkpointConf = env.getCheckpointConfig();
+				checkpointConf.setCheckpointInterval(cpInterval);
+				checkpointConf.setCheckpointingMode(CheckpointingMode.EXACTLY_ONCE);
+				checkpointConf.setCheckpointTimeout(TimeUnit.HOURS.toMillis(1));
+				checkpointConf.enableExternalizedCheckpoints(CheckpointConfig.ExternalizedCheckpointCleanup.RETAIN_ON_CANCELLATION);
+				env.getConfig().setUseSnapshotCompression(true);
+			}
+		}catch (Exception e) {
+			System.err.println(
+					"No port specified. Please run 'SocketWindowWordCount "
+							+ "--hostname <hostname> --port <port> --checkpoint <time>', where hostname (localhost by default) "
+							+ "and port is the address of the text server "+ "and chekpoint is the time for checkpointing");
+			System.err.println(
+					"To start a simple text server, run 'netcat -l <port>' and "
+							+ "type the input text into the command line");
+			return;
+		}
 
 		DataStreamSource<String> inp = env.socketTextStream(hostname, port, "\n");
 
@@ -135,7 +183,7 @@ public class StreamingJob extends RichFlatMapFunction<Tuple2<String, Long>, Tupl
 						if(word.equals("clear")){
 							word="-1";
 						}
-						out.collect(Tuple2.of(Q_NAME, Long.valueOf(word)));
+						out.collect(Tuple2.of(statekey, Long.valueOf(word)));
 					}
 					catch ( NumberFormatException e) {
 						System.out.println("Enter valid number: "+e.getMessage());
@@ -151,7 +199,6 @@ public class StreamingJob extends RichFlatMapFunction<Tuple2<String, Long>, Tupl
 //		System.out.println("[info] Job ID: " + jobGraph.getJobID());
 		System.out.println("Running!!!");
 		env.execute("Sum Job");
-//		flinkCluster.submitJobAndWait(jobGraph, false);
 	}
 
 

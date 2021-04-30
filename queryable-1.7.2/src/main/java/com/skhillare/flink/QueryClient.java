@@ -5,6 +5,8 @@ import java.util.concurrent.TimeUnit;
 import jline.console.ConsoleReader;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.JobID;
+import org.apache.flink.api.common.state.ListState;
+import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.api.common.typeinfo.TypeHint;
@@ -39,6 +41,12 @@ public class QueryClient {
                         }), // type information
                         Tuple2.of("avg", 0L));
 
+        ListStateDescriptor<Tuple2<String, Long>> listDis =
+                new ListStateDescriptor<>(
+                        StreamingJob.List_Q_NAME,
+                        TypeInformation.of(new TypeHint<Tuple2<String, Long>>() {
+                        }));
+
         System.out.println("Using JobManager " + jobManagerHost + ":" + jobManagerPort);
         printUsage();
 
@@ -50,32 +58,53 @@ public class QueryClient {
         while ((line = reader.readLine()) != null) {
             String key = line.toLowerCase().trim();
             out.printf("[info] Querying key '%s'\n", key);
+            if(key.equals("statekey")){
+                try {
+                    long start = System.currentTimeMillis();
 
-            try {
-                long start = System.currentTimeMillis();
-
-                CompletableFuture<ValueState<Tuple2<String, Long>>> resultFuture =
-                        client.getKvState(jobId, StreamingJob.Q_NAME, key, BasicTypeInfo.STRING_TYPE_INFO, descriptor);
-
-                resultFuture.thenAccept(response -> {
-                    try {
-                        Tuple2<String, Long> res = response.value();
-                        long end = System.currentTimeMillis();
-                        long duration = Math.max(0, end - start);
-                        if (res != null) {
-                            out.printf("%s (query took %d ms)\n", res.toString(), duration);
-                        } else {
-                            out.printf("Unknown key %s (query took %d ms)\n", key, duration);
+                    CompletableFuture<ValueState<Tuple2<String, Long>>> resultFuture =
+                            client.getKvState(jobId, StreamingJob.Q_NAME, key, BasicTypeInfo.STRING_TYPE_INFO, descriptor);
+                    CompletableFuture<ListState<Tuple2<String, Long>>> resultFutureList =
+                                client.getKvState(jobId, StreamingJob.List_Q_NAME, key, BasicTypeInfo.STRING_TYPE_INFO, listDis);
+                    resultFuture.thenAccept(response -> {
+                        try {
+                            Tuple2<String, Long> res = response.value();
+                            long end = System.currentTimeMillis();
+                            long duration = Math.max(0, end - start);
+                            if (res != null) {
+                                out.printf("\nValueState:\n%s (query took %d ms)\n", res.toString(), duration);
+                            } else {
+                                out.printf("\nValueState:\nUnknown key %s (query took %d ms)\n", key, duration);
+                            }
+                        } catch (Exception e) {
+                            e.printStackTrace();
                         }
+                    });
+                    resultFutureList.thenAccept(response -> {
+                            try {
+    //                            Tuple2<String, Long> res = (Tuple2<String, Long>) response.get();
+                                long end = System.currentTimeMillis();
+                                long duration = Math.max(0, end - start);
+                                Iterable<Tuple2<String, Long>> state = response.get();
+
+                                if (state != null) {
+                                    out.printf("\nListState:\n%s (query took %d ms)\n", response.get().toString(), duration);
+                                } else {
+                                    out.printf("\nListState:\nUnknown key %s (query took %d ms)\n", key, duration);
+                                }
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                }
+                    });
+                    resultFutureList.get(5, TimeUnit.SECONDS);
+                    resultFuture.get(5, TimeUnit.SECONDS);
+
                     } catch (Exception e) {
+                        out.printf("Error Processing!!!\n");
                         e.printStackTrace();
                     }
-                });
-
-                resultFuture.get(5, TimeUnit.SECONDS);
-
-            } catch (Exception e) {
-                System.out.println("Unknown Key or Job is failed...\nEnter `query` as key.");
+            }else{
+                out.printf("You Entered Wrong key, Please enter `statekey` as key.\n");
             }
 
         }
