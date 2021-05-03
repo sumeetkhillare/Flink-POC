@@ -46,7 +46,6 @@ package com.skhillare.flink;
 
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.RichFlatMapFunction;
-import org.apache.flink.api.common.restartstrategy.RestartStrategies;
 import org.apache.flink.api.common.state.*;
 import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -56,13 +55,10 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.jobgraph.JobGraph;
 import org.apache.flink.shaded.curator.org.apache.curator.shaded.com.google.common.collect.Lists;
 import org.apache.flink.streaming.api.CheckpointingMode;
-import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.CheckpointConfig;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.util.Collector;
-import org.apache.flink.api.common.time.Time;
-import scala.util.parsing.json.JSONObject;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -70,11 +66,8 @@ import java.net.Socket;
 import java.net.SocketAddress;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-//@SuppressWarnings("serial")
 class QuitValueState extends Exception{
 	QuitValueState(String m1,String inetAddress,int port) throws IOException {
 		super(m1);
@@ -96,7 +89,7 @@ public class StreamingJob extends RichFlatMapFunction<Tuple2<String, Long>, Tupl
 	public final static String statekey = "statekey";
 	private transient MapState<String, Long> mapState;
 	public final static String Map_Q_NAME = "map-query";
-
+	public final static String Keyed_Q_NAME = "keyed-query";
 	private void printstate() throws Exception{
 		ArrayList<Tuple2<String, Long>> listdata = Lists.newArrayList(listState.get());
 		System.out.println("liststate data");
@@ -129,16 +122,16 @@ public class StreamingJob extends RichFlatMapFunction<Tuple2<String, Long>, Tupl
 		System.out.println("MapState:");
 		System.out.println(String.valueOf(mapState.get(statekey)));
 
-//		out.collect(new Tuple2<>(Q_NAME, sum.value().f1));
+		out.collect(new Tuple2<>(statekey, sum.value().f1));
 
 	}
 	@Override
 	public void open(Configuration config) {
 		ValueStateDescriptor<Tuple2<String, Long>> descriptor =
 				new ValueStateDescriptor<>(
-						Q_NAME, // the state name
-						TypeInformation.of(new TypeHint<Tuple2<String, Long>>() {}), // type information
-						Tuple2.of(statekey, 0L)); // default value of the state, if nothing was set
+						Q_NAME,
+						TypeInformation.of(new TypeHint<Tuple2<String, Long>>() {}),
+						Tuple2.of(statekey, 0L));
 		descriptor.setQueryable(Q_NAME);
 		sum = getRuntimeContext().getState(descriptor);
 
@@ -153,6 +146,7 @@ public class StreamingJob extends RichFlatMapFunction<Tuple2<String, Long>, Tupl
 				Long.class);
 		mapStateDes.setQueryable(Map_Q_NAME);
 		mapState = getRuntimeContext().getMapState(mapStateDes);
+
 
 
 	}
@@ -187,7 +181,11 @@ public class StreamingJob extends RichFlatMapFunction<Tuple2<String, Long>, Tupl
 
 
 		DataStreamSource<String> inp = env.socketTextStream(hostname, port, "\n");
-
+		ValueStateDescriptor<Tuple2<String, Long>> descriptor =
+				new ValueStateDescriptor<>(
+						Keyed_Q_NAME, // the state name
+						TypeInformation.of(new TypeHint<Tuple2<String, Long>>() {}), // type information
+						Tuple2.of(statekey, 0L));
 		inp.flatMap(new FlatMapFunction<String, Tuple2<String, Long>>() {
 			@Override
 			public void flatMap(String inpstr, Collector<Tuple2<String, Long>> out) throws Exception{
@@ -210,9 +208,9 @@ public class StreamingJob extends RichFlatMapFunction<Tuple2<String, Long>, Tupl
 					}
 				}
 			}
-		}).name("Input Conversion").keyBy(0).flatMap(new StreamingJob()).name("Store in State");
-//				.keyBy(0)
-//				.asQueryableState(Q_NAME,descriptor);
+		}).name("Input Conversion").keyBy(0).flatMap(new StreamingJob()).name("Store in State")
+				.keyBy(0)
+				.asQueryableState(Keyed_Q_NAME,descriptor);
 		JobGraph jobGraph = env.getStreamGraph().getJobGraph();
 //		System.out.println("[info] Job ID: " + jobGraph.getJobID());
 		System.out.println("Running!!!");

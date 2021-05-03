@@ -4,6 +4,7 @@ com\skhillare\flink\StreamingJob.class
 com\skhillare\flink\QueryClient$1.class
 com\skhillare\flink\BatchJob$2.class
 com\skhillare\flink\QuitValueState.class
+com\skhillare\flink\StreamingJob$4.class
 com\skhillare\flink\BatchJob.class
 com\skhillare\flink\QueryClient$2.class
 com\skhillare\flink\BatchJob$WordWithCount.class
