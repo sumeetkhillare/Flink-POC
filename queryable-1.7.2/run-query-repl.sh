@@ -21,4 +21,4 @@ fi
 
 echo "[info] Executing EventCountClient from flink-quick-1.0-SNAPSHOT.jar (exit via Control+C)"
 echo ""
-java -cp $target com.skhillare.flink.QueryClient -jobid $jobId
+java -cp $target com.qualys.seca.flink.poc.QueryClient -jobid $jobId

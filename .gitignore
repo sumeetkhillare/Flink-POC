@@ -1,0 +1,9 @@
+Flink-POC/SumJob/target
+.idea
+*.iml
+Flink-POC/SumJob/dependency-reduced-pom.xml
+*.ini
+logs
+Flink-POC/WordCount/target
+Flink-POC/WordCount/dependency-reduced-pom.xml
+Flink-POC/QueryableState-1.2/target

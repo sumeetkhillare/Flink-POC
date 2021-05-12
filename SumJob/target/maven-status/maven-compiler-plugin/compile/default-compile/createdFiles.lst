@@ -1,0 +1,14 @@
+com/skhillare/sumjob/initialization/statedescriptor/CustomStateDescriptor$2.class
+com/skhillare/sumjob/manageproperties/ManageFixedProperties.class
+com/skhillare/sumjob/flinkjob/ManageState.class
+com/skhillare/sumjob/manageproperties/ManageFlinkJob.class
+com/skhillare/sumjob/queryclient/QueryClient.class
+com/skhillare/sumjob/flinkjob/quitjob/QuitJob.class
+com/skhillare/sumjob/flinkjob/setqueryable/CustomSetQueryable.class
+com/skhillare/sumjob/flinkjob/StreamingJob$1.class
+com/skhillare/sumjob/flinkjob/StreamingJob.class
+com/skhillare/sumjob/initialization/statedescriptor/CustomStateDescriptor$1.class
+com/skhillare/sumjob/initialization/userinput/UserInput.class
+com/skhillare/sumjob/initialization/statedescriptor/CustomStateDescriptor.class
+com/skhillare/sumjob/flinkjob/checkpointing/CustomCheckpointing.class
+com/skhillare/sumjob/manageproperties/ManageQueryJob.class

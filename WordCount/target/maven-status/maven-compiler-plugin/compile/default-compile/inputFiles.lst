@@ -1,0 +1,11 @@
+/mnt/c/Users/skhillare/Desktop/Flink-POC/WordCount/src/main/java/com/skhillare/wordcount/manageproperties/ManageFlinkJob.java
+/mnt/c/Users/skhillare/Desktop/Flink-POC/WordCount/src/main/java/com/skhillare/wordcount/flinkjob/quitjob/QuitJob.java
+/mnt/c/Users/skhillare/Desktop/Flink-POC/WordCount/src/main/java/com/skhillare/wordcount/flinkjob/StreamingJob.java
+/mnt/c/Users/skhillare/Desktop/Flink-POC/WordCount/src/main/java/com/skhillare/wordcount/flinkjob/checkpointing/CustomCheckpointing.java
+/mnt/c/Users/skhillare/Desktop/Flink-POC/WordCount/src/main/java/com/skhillare/wordcount/flinkjob/ManageState.java
+/mnt/c/Users/skhillare/Desktop/Flink-POC/WordCount/src/main/java/com/skhillare/wordcount/initialization/userinput/UserInput.java
+/mnt/c/Users/skhillare/Desktop/Flink-POC/WordCount/src/main/java/com/skhillare/wordcount/manageproperties/ManageQueryJob.java
+/mnt/c/Users/skhillare/Desktop/Flink-POC/WordCount/src/main/java/com/skhillare/wordcount/initialization/statedescriptor/CustomStateDescriptor.java
+/mnt/c/Users/skhillare/Desktop/Flink-POC/WordCount/src/main/java/com/skhillare/wordcount/flinkjob/setqueryable/CustomSetQueryable.java
+/mnt/c/Users/skhillare/Desktop/Flink-POC/WordCount/src/main/java/com/skhillare/wordcount/manageproperties/ManageFixedProperties.java
+/mnt/c/Users/skhillare/Desktop/Flink-POC/WordCount/src/main/java/com/skhillare/wordcount/queryclient/QueryClient.java

@@ -1,0 +1,13 @@
+com/skhillare/wordcount/initialization/statedescriptor/CustomStateDescriptor$1.class
+com/skhillare/wordcount/manageproperties/ManageQueryJob.class
+com/skhillare/wordcount/manageproperties/ManageFixedProperties.class
+com/skhillare/wordcount/queryclient/QueryClient.class
+com/skhillare/wordcount/initialization/userinput/UserInput.class
+com/skhillare/wordcount/flinkjob/ManageState.class
+com/skhillare/wordcount/flinkjob/checkpointing/CustomCheckpointing.class
+com/skhillare/wordcount/flinkjob/StreamingJob$1.class
+com/skhillare/wordcount/manageproperties/ManageFlinkJob.class
+com/skhillare/wordcount/initialization/statedescriptor/CustomStateDescriptor.class
+com/skhillare/wordcount/flinkjob/StreamingJob.class
+com/skhillare/wordcount/flinkjob/quitjob/QuitJob.class
+com/skhillare/wordcount/flinkjob/setqueryable/CustomSetQueryable.class

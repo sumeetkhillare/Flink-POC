@@ -1,0 +1,11 @@
+/mnt/c/Users/skhillare/Desktop/Flink-POC/SumJob/src/main/java/com/skhillare/sumjob/flinkjob/StreamingJob.java
+/mnt/c/Users/skhillare/Desktop/Flink-POC/SumJob/src/main/java/com/skhillare/sumjob/flinkjob/setqueryable/CustomSetQueryable.java
+/mnt/c/Users/skhillare/Desktop/Flink-POC/SumJob/src/main/java/com/skhillare/sumjob/initialization/statedescriptor/CustomStateDescriptor.java
+/mnt/c/Users/skhillare/Desktop/Flink-POC/SumJob/src/main/java/com/skhillare/sumjob/manageproperties/ManageFlinkJob.java
+/mnt/c/Users/skhillare/Desktop/Flink-POC/SumJob/src/main/java/com/skhillare/sumjob/flinkjob/ManageState.java
+/mnt/c/Users/skhillare/Desktop/Flink-POC/SumJob/src/main/java/com/skhillare/sumjob/queryclient/QueryClient.java
+/mnt/c/Users/skhillare/Desktop/Flink-POC/SumJob/src/main/java/com/skhillare/sumjob/flinkjob/quitjob/QuitJob.java
+/mnt/c/Users/skhillare/Desktop/Flink-POC/SumJob/src/main/java/com/skhillare/sumjob/initialization/userinput/UserInput.java
+/mnt/c/Users/skhillare/Desktop/Flink-POC/SumJob/src/main/java/com/skhillare/sumjob/flinkjob/checkpointing/CustomCheckpointing.java
+/mnt/c/Users/skhillare/Desktop/Flink-POC/SumJob/src/main/java/com/skhillare/sumjob/manageproperties/ManageFixedProperties.java
+/mnt/c/Users/skhillare/Desktop/Flink-POC/SumJob/src/main/java/com/skhillare/sumjob/manageproperties/ManageQueryJob.java
